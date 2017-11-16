@@ -11,12 +11,13 @@
 ## Developed by Kedong Chen
 ## Last update: 11/15/2017
 
-disruption_status = function (network, tier, exam_t, disruption_times, disrupt_t=NULL, prct_node_down, node_down_to_capacity, recovery_node_each_time, seed){
+disruption_status = function (network, exam_t, disruption_times, disrupt_t=NULL, prct_node_down, node_down_to_capacity, recovery_node_each_time, seed){
 
   require(igraph)
   set.seed(seed)
   
   if (gorder(network)>1){
+    tier = max(V(network)$tier)
     if (is.null(disrupt_t)){
       if (disruption_times == 1) {disrupt_t = 1} else { disrupt_t = c(1,sort(sample(2:exam_t, (disruption_times-1))))}
     }
@@ -37,26 +38,31 @@ disruption_status = function (network, tier, exam_t, disruption_times, disrupt_t
       node_health = pmin((node_health + recovery_node_each_time), 1)  # to avoid output as "next-time"...
       if (t %in% disrupt_t){  # means there is a disruption
         # randomly choose nodes
-        # focal node won't down...
+        # focal node won't be down...
+        # this is RANDOM ATTACK
         unhealth = 1 - (1 - c(1,1*(runif(gorder(network)-1) > prct_node_down))) * (1 - node_down_to_capacity)
         # here the unhealth is totally random -- in reality, the one got hurt may not be hurt again...
         node_health = pmin(unhealth, node_health)
       }
       # check capacity backwards...
       # last-tier capacity
-      prod_temp_tier = colSums(node_health[which(V(network)$tier == tier)] * prod_adj[which(V(network)$tier == tier),])
-      for (i in (tier-1):1){
-        # check if second-last tier becomes the final supplier...
-        for (j in 1:length(which(V(network)$tier == i))){
-          if (prod_temp_tier[which(V(network)$tier == i)][j] == 0){
-            prod_temp_tier[which(V(network)$tier == i)][j] = rowSums(prod_adj[which(V(network)$tier == i),])[j]
-          } else {
-            prod_temp_tier[which(V(network)$tier == i)][j] = min(prod_temp_tier[which(V(network)$tier == i)][j], rowSums(prod_adj[which(V(network)$tier == i),])[j])
+      prod_temp_tier = colSums(node_health[which(V(network)$tier == tier),drop = FALSE] * prod_adj[which(V(network)$tier == tier),,drop = FALSE])
+      if (tier > 1) {
+        for (i in (tier-1):1){
+          # check if second-last tier becomes the final supplier...
+          for (j in 1:length(which(V(network)$tier == i))){
+            if (prod_temp_tier[which(V(network)$tier == i)][j] == 0){
+              prod_temp_tier[which(V(network)$tier == i)][j] = rowSums(prod_adj[which(V(network)$tier == i),,drop = FALSE])[j]
+            } else {
+              prod_temp_tier[which(V(network)$tier == i)][j] = min(prod_temp_tier[which(V(network)$tier == i)][j],
+                       rowSums(prod_adj[which(V(network)$tier == i),,drop = FALSE])[j])
+            }
           }
+          prod_temp_tier = colSums(prod_temp_tier[which(V(network)$tier == i),drop = FALSE] * 
+                  node_health[which(V(network)$tier == i),drop = FALSE] * 
+                  prod_adj[which(V(network)$tier == i),,drop = FALSE] /
+                  rowSums(prod_adj[which(V(network)$tier == i),,drop = FALSE]))
         }
-        prod_temp_tier = colSums( prod_temp_tier[which(V(network)$tier == i)] * 
-                node_health[which(V(network)$tier == i)] * 
-                prod_adj[which(V(network)$tier == i),] / rowSums(prod_adj[which(V(network)$tier == i),]))
       }
       focal_total_prod[t] = prod_temp_tier[1]
     }
