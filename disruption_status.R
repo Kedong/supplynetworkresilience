@@ -9,7 +9,7 @@
 ## Inputs: Disruption time points -- random if not specified, prct_node_down, node_down_to_capacity, recovery_node_each_time
 ## Output: End node health, focal node prod in the examination period...
 ## Developed by Kedong Chen
-## Last update: 11/15/2017
+## Last update: 11/23/2017
 
 disruption_status = function (network, exam_t, disruption_times, disrupt_t=NULL, prct_node_down, node_down_to_capacity, recovery_node_each_time, seed){
 
@@ -23,6 +23,10 @@ disruption_status = function (network, exam_t, disruption_times, disrupt_t=NULL,
     }
     
     focal_total_prod = numeric(exam_t)
+    net_health_equal = numeric(exam_t)
+    net_health_weighted_d = numeric(exam_t)
+    net_health_weighted_bet = numeric(exam_t)
+    net_health_weighted_eigen = numeric(exam_t)
     node_health = rep(1, gorder(network))
     
     # initial production state
@@ -65,8 +69,14 @@ disruption_status = function (network, exam_t, disruption_times, disrupt_t=NULL,
         }
       }
       focal_total_prod[t] = prod_temp_tier[1]
+      net_health_equal[t] = mean(node_health)
+      net_health_weighted_d[t] = mean(node_health*igraph::degree(network, mode="all", normalized=T)) #ignore direction
+      net_health_weighted_bet[t] = mean(node_health*betweenness(network, direct=F, normalized=T)) #ignore direction
+      net_health_weighted_eigen[t] = mean(node_health*eigen_centrality(network, direct=F)$vector) #ignore direction
     }
     
-    return(list(disrupt_t = disrupt_t, end_node_health = node_health, focal_prod = focal_total_prod))
+    return(list(disrupt_t = disrupt_t, focal_prod = focal_total_prod, net_health_equal=net_health_equal,
+                net_health_weighted_d=net_health_weighted_d, net_health_weighted_bet=net_health_weighted_bet,
+                net_health_weighted_eigen=net_health_weighted_eigen))
   }
 }
